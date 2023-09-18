@@ -3,8 +3,9 @@ import axios from "axios";
 import csv from "csv-parser";
 import { createObjectCsvWriter } from "csv-writer";
 import moment from "moment";
-import * as config from "./config";
+// import config from "./config";
 import qs from "qs";
+import "dotenv/config";
 
 interface User {
   cpf: string;
@@ -95,6 +96,18 @@ type ValidaId = ValidaIdRequiredProps & ValidaIdOptionalProps;
 type ValidaIdData = Partial<ValidaIdOptionalProps> &
   Omit<ValidaIdRequiredProps, "id" | "createdAt" | "updatedAt">;
 
+const config = {
+  validaIdUrl: process.env.VALIDA_ID_URL || "",
+  validaIdRegional: process.env.VALIDA_ID_REGIONAL || "",
+  validaIdCodigo: process.env.VALIDA_ID_CODIGO || "",
+  validaIdSenha: process.env.VALIDA_ID_SENHA || "",
+  validaIdConsulta: process.env.VALIDA_ID_CONSULTA || "",
+  validaIdCadastroCompleto: process.env.VALIDA_ID_CADASTRO_COMPLETO || "",
+  validaIdLocalizacao: process.env.VALIDA_ID_LOCALIZACAO || "",
+  validaIdQualificacao: process.env.VALIDA_ID_QUALIFICACAO || "",
+  validaIdCadastroBasico: process.env.VALIDA_ID_CADASTRO_BASICO || "",
+};
+
 function formatDate(dateStr?: string): string {
   if (!dateStr) {
     return "";
@@ -159,16 +172,38 @@ function extractUserData(validaId: any): ValidaIdData {
       validaId.RESPOSTA.CONSULTACADASTRAL["LOCALIZACAO-COMPLETO"];
 
     if (Array.isArray(contactInfo.TELEFONE)) {
-      const phoneList = contactInfo.TELEFONE.map(
+      const phoneList = contactInfo.TELEFONE.filter(
+        (i: any) => i.TIPO === "CELULAR"
+      ).map(
         (item: any) =>
           `${item?.DDD?.toString() || ""}${item?.NUMERO?.toString() || ""}`
       );
-      Object.assign(user, { phone: phoneList.toString() });
+      const telList = contactInfo.TELEFONE.filter(
+        (i: any) => i.TIPO !== "CELULAR"
+      ).map(
+        (item: any) =>
+          `${item?.DDD?.toString() || ""}${item?.NUMERO?.toString() || ""}`
+      );
+      Object.assign(user, {
+        phone: phoneList.toString(),
+        tel: telList.toString(),
+      });
     } else if (contactInfo.TELEFONE) {
-      const phoneInfo = `${contactInfo.TELEFONE?.DDD?.toString() || ""}${
-        contactInfo.TELEFONE?.NUMERO?.toString() || ""
-      }`;
-      Object.assign(user, { phone: phoneInfo });
+      const phoneInfo =
+        contactInfo.TELEFONE.TIPO === "CELULAR"
+          ? `${contactInfo.TELEFONE?.DDD?.toString() || ""}${
+              contactInfo.TELEFONE?.NUMERO?.toString() || ""
+            }`
+          : "";
+      const telInfo =
+        contactInfo.TELEFONE.TIPO === "FIXO"
+          ? `${contactInfo.TELEFONE?.DDD?.toString() || ""}${
+              contactInfo.TELEFONE?.NUMERO?.toString() || ""
+            }`
+          : "";
+      Object.assign(user, { phone: phoneInfo, tel: telInfo });
+    } else {
+      Object.assign(user, { phone: "", tel: "" });
     }
 
     if (Array.isArray(contactInfo.EMAIL)) {
@@ -176,6 +211,8 @@ function extractUserData(validaId: any): ValidaIdData {
       Object.assign(user, { email: emailList.toString() });
     } else if (contactInfo.EMAIL) {
       Object.assign(user, { email: contactInfo.EMAIL });
+    } else {
+      Object.assign(user, { email: "" });
     }
 
     return user;
@@ -196,7 +233,7 @@ async function fetchUserData(cpf: string) {
   }
 }
 
-async function fetchValidaId(cpf: Pick<User, "cpf">) {
+async function fetchValidaId(cpf: string) {
   const data = {
     VERSAO: "20220225",
     "S-REGIONAL": config.validaIdRegional,
@@ -241,9 +278,17 @@ async function processCSV() {
     users.push({ cpf: row.cpf });
   });
   reader.on("end", async () => {
-    for (const user of users) {
-      const additionalData = await fetchUserData(user.cpf);
-      Object.assign(user, additionalData);
+    for (const [item, user] of users.entries()) {
+      try {
+        console.log(
+          `Fetching data for user ${user.cpf}: (${item + 1}/${users.length})`
+        );
+        const { user: validaId } = await fetchValidaId(user.cpf);
+        // const additionalData = await fetchUserData(user.cpf);
+        Object.assign(user, validaId);
+      } catch (error) {
+        console.log(error);
+      }
     }
     const csvWriter = createObjectCsvWriter({
       path: "enhanced_users.csv",
@@ -259,5 +304,6 @@ async function processCSV() {
       });
   });
 }
+// console.log(config);
 
 processCSV();

@@ -7,7 +7,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "ts-node dist/app.js",
     "build": "tsc",
-    "dev": "ts-node-dev --respawn --transpile-only src/app.ts"
+    "dev": "ts-node-esm src/app.ts"
   },
   "keywords": [],
   "author": "",
@@ -16,6 +16,7 @@
     "axios": "^1.5.0",
     "csv-parser": "^3.0.0",
     "csv-writer": "^1.6.0",
+    "dotenv": "^16.3.1",
     "moment": "^2.29.4",
     "qs": "^6.11.2"
   },
